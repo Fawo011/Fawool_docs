@@ -22,52 +22,22 @@ ctrl_l_event_.update(dbus_data->key_l & dbus_data->key_ctrl);
 void EngineerManual::ctrlXPress()
 {
 prefix_ = "";//不打算加入前缀
-  root_ = "";
+  root_ = "NEW_KEY";
   runStepQueue(root_);
   ROS_INFO("%s", (prefix_ + root_).c_str());
 }
 ```
 然后去rm_ws/src/rm_engineer/engineer_middleware/config下的steps_list.yaml中添加自己的新动作(复杂动作是会涉及很多步骤,现指实例简单动作)
 ```
-  LF_SMALL_ISLAND0:
-    - step: "arm wait"
+  NEW_KEY:
+    - step: "arm go"
       arm:
-        <<: *PICK_WAIT
-  LF_SMALL_ISLAND00:
-    - step: "arm ready to get stone"
-      arm:
-        joints: [0.349, 0.031, 0.285, -1.518, -0.043, 3.217387077106941]
+        joints: 
         common:
           <<: *NORMALLY
         tolerance:
           <<: *BIGGER_TOLERANCE
-    - step: "change gripper state"
-      gripper:
-        <<: *OPEN_GRIPPER
-    - step: "move arm down to gain stone"
-      arm:
-        joints: [ 0.279, 0.031, 0.285, -1.518, -0.043, 3.217387077106941 ]
-        common:
-          <<: *NORMALLY
-        tolerance:
-          <<: *BIGGER_TOLERANCE
-    - step: "move arm up"
-      arm:
-        joints: [ 0.458, 0.031, 0.266, -1.518, -0.043, 3.217387077106941 ]
-        common:
-          <<: *QUICKLY
-        tolerance:
-          <<: *BIGGER_TOLERANCE
-    - step: "reversal stone"
-      arm:
-        joints: [0.452, 0.0316, 0.207, -1.436, 0.011, 1.0]
-        common:
-          <<: *QUICKLY
-        tolerance:
-          <<: *BIGGER_TOLERANCE
-    - step: "arm wait"
-      arm:
-        <<: *PICK_WAIT
+    
 ```
 如实例每小步都可以以-step开始设置arm或者gripper的大类
 ## 用RViz调各个关节的值
