@@ -69,13 +69,10 @@ bool Controller::init(hardware_interface::RobotHW* robot_hw, ros::NodeHandle& ro
   ros::NodeHandle nh_friction_l = ros::NodeHandle(controller_nh, "friction_left");
   ros::NodeHandle nh_friction_r = ros::NodeHandle(controller_nh, "friction_right");
   ros::NodeHandle nh_trigger = ros::NodeHandle(controller_nh, "trigger");
-  ros::NodeHandle nh_trigger_h = ros::NodeHandle(controller_nh, "trigger_h");
   effort_joint_interface_ = robot_hw->get<hardware_interface::EffortJointInterface>();
   return ctrl_friction_l_.init(effort_joint_interface_, nh_friction_l) &&
          ctrl_friction_r_.init(effort_joint_interface_, nh_friction_r) &&
-         ctrl_trigger_.init(effort_joint_interface_, nh_trigger)&&
-         ctrl_trigger_h.init(effort_joint_interface_, nh_trigger_h);
-
+         ctrl_trigger_.init(effort_joint_interface_, nh_trigger);
 }
 
 void Controller::starting(const ros::Time& /*time*/)
@@ -88,28 +85,17 @@ void Controller::update(const ros::Time& time, const ros::Duration& period)
 {
   cmd_ = *cmd_rt_buffer_.readFromRT();
   config_ = *config_rt_buffer.readFromRT();
-  if (state_ != cmd_.mode) {
-      if (state_ != BLOCK){
-          if (cmd_.hz >= 20) {
-              if ((state_ != PUSH || cmd_.mode != READY) ||
-                  (cmd_.mode == READY &&
-                   std::fmod(std::abs(ctrl_trigger_.command_struct_.position_ - ctrl_trigger_.getPosition()),
-                             2. * M_PI) <
-                   config_.exit_push_threshold+0.5)) {
-                  state_ = cmd_.mode;
-                  state_changed_ = true;
-              }
-          } else {
-              if ((state_ != PUSH || cmd_.mode != READY) ||
-                  (cmd_.mode == READY &&
-                   std::fmod(std::abs(ctrl_trigger_.command_struct_.position_ - ctrl_trigger_.getPosition()),
-                             2. * M_PI) <
-                   config_.exit_push_threshold)) {
-                  state_ = cmd_.mode;
-                  state_changed_ = true;
-              }
-          }
-  }
+  if (state_ != cmd_.mode)
+  {
+    if (state_ != BLOCK)
+      if ((state_ != PUSH || cmd_.mode != READY) ||
+          (cmd_.mode == READY &&
+           std::fmod(std::abs(ctrl_trigger_.command_struct_.position_ - ctrl_trigger_.getPosition()), 2. * M_PI) <
+               config_.exit_push_threshold))
+      {
+        state_ = cmd_.mode;
+        state_changed_ = true;
+      }
   }
 
   if (state_ != STOP)
@@ -178,21 +164,22 @@ void Controller::push(const ros::Time& time, const ros::Duration& period)
         ctrl_friction_r_.joint_.getVelocity() < -M_PI)) &&
       (time - last_shoot_time_).toSec() >= 1. / cmd_.hz)
   {  // Time to shoot!!!
-    if(cmd_.hz>=20) //check hz
-    {
+    if(cmd_.hz>=20) {
+        config_.forward_push_threshold+=0.5;
         if (std::fmod(std::abs(ctrl_trigger_.command_struct_.position_ - ctrl_trigger_.getPosition()), 2. * M_PI) <
-            config_.forward_push_threshold+0.5) {
-            ctrl_trigger_h.setCommand(ctrl_trigger_.command_struct_.position_ -
-                                      2. * M_PI / static_cast<double>(push_per_rotation_),
-                                      -1 * cmd_.hz * 2. * M_PI / static_cast<double>(push_per_rotation_));
+            config_.forward_push_threshold) {
+            ctrl_trigger_.setCommand(ctrl_trigger_.command_struct_.position_ -
+                                     2. * M_PI / static_cast<double>(push_per_rotation_),
+                                     -1 * cmd_.hz * 2. * M_PI / static_cast<double>(push_per_rotation_));
             last_shoot_time_ = time;
         }
+        config_.forward_push_threshold-=0.5;
     }else{
-            if(std::fmod(std::abs(ctrl_trigger_.command_struct_.position_ - ctrl_trigger_.getPosition()), 2. * M_PI) <
-               config_.forward_push_threshold) {
-                ctrl_trigger_.setCommand(ctrl_trigger_.command_struct_.position_ -
-                                         2. * M_PI / static_cast<double>(push_per_rotation_));
-                last_shoot_time_ = time;
+        if (std::fmod(std::abs(ctrl_trigger_.command_struct_.position_ - ctrl_trigger_.getPosition()), 2. * M_PI) <
+            config_.forward_push_threshold) {
+            ctrl_trigger_.setCommand(ctrl_trigger_.command_struct_.position_ -
+                                      2. * M_PI / static_cast<double>(push_per_rotation_));
+            last_shoot_time_ = time;
         }
     }
     // Check block
