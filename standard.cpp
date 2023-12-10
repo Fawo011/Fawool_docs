@@ -187,24 +187,21 @@ void Controller::push(const ros::Time& time, const ros::Duration& period)
         }
         config_.forward_push_threshold-=0.5;
     }else{
-        if(ctrl_trigger_.command_struct_.position_ - ctrl_trigger_.getPosition() >= (ctrl_trigger_.command_struct_.position_/2)){
-            if (std::fmod(std::abs(ctrl_trigger_.command_struct_.position_ - ctrl_trigger_.getPosition()), 2. * M_PI) <
-                config_.forward_push_threshold) {
-                expect_velocity += std::pow(-1 * cmd_.hz * 2. * M_PI / static_cast<double>(push_per_rotation_), 2) /
-                        (ctrl_trigger_.command_struct_.position_ - ctrl_trigger_.getPosition());
-                ctrl_trigger_.setCommand(ctrl_trigger_.command_struct_.position_ -
-                                         2. * M_PI / static_cast<double>(push_per_rotation_), expect_velocity);
-                last_shoot_time_ = time;
-            }
-        }else{
-            if (std::fmod(std::abs(ctrl_trigger_.command_struct_.position_ - ctrl_trigger_.getPosition()), 2. * M_PI) <
-                config_.forward_push_threshold) {
-                expect_velocity -= std::pow(-1 * cmd_.hz * 2. * M_PI / static_cast<double>(push_per_rotation_), 2) /
-                        (ctrl_trigger_.command_struct_.position_ - ctrl_trigger_.getPosition());
-                ctrl_trigger_.setCommand(ctrl_trigger_.command_struct_.position_ -
-                                         2. * M_PI / static_cast<double>(push_per_rotation_), expect_velocity);
-                last_shoot_time_ = time;
-            }
+
+        if (ctrl_trigger_.command_struct_.position_ - ctrl_trigger_.getPosition() >= (static_cast<double>(push_per_rotation_) / 2))
+        {
+            expect_velocity += std::pow(-1 * cmd_.hz * 2. * M_PI / static_cast<double>(push_per_rotation_), 2) /
+                               ctrl_trigger_.command_struct_.position_;
+        }else
+        {
+            expect_velocity -= std::pow(-1 * cmd_.hz * 2. * M_PI / static_cast<double>(push_per_rotation_), 2) /
+                               ctrl_trigger_.command_struct_.position_;
+        }
+        if (std::fmod(std::abs(ctrl_trigger_.command_struct_.position_ - ctrl_trigger_.getPosition()), 2. * M_PI) <
+            config_.forward_push_threshold) {
+            ctrl_trigger_.setCommand(ctrl_trigger_.command_struct_.position_ -
+                                     2. * M_PI / static_cast<double>(push_per_rotation_), expect_velocity);
+            last_shoot_time_ = time;
         }
     }
     // Check block
