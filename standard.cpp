@@ -85,17 +85,29 @@ void Controller::update(const ros::Time& time, const ros::Duration& period)
 {
   cmd_ = *cmd_rt_buffer_.readFromRT();
   config_ = *config_rt_buffer.readFromRT();
-  if (state_ != cmd_.mode)
-  {
-    if (state_ != BLOCK)
-      if ((state_ != PUSH || cmd_.mode != READY) ||
-          (cmd_.mode == READY &&
-           std::fmod(std::abs(ctrl_trigger_.command_struct_.position_ - ctrl_trigger_.getPosition()), 2. * M_PI) <
-               config_.exit_push_threshold))
-      {
-        state_ = cmd_.mode;
-        state_changed_ = true;
-      }
+  if (state_ != cmd_.mode) {
+      if (state_ != BLOCK){
+          if (cmd_.hz >= 20) {
+              if ((state_ != PUSH || cmd_.mode != READY) ||
+                  (cmd_.mode == READY &&
+                   std::fmod(std::abs(ctrl_trigger_.command_struct_.position_ - ctrl_trigger_.getPosition()),
+                             2. * M_PI) <
+                   config_.exit_push_threshold + 0.5)) {
+                  state_ = cmd_.mode;
+                  state_changed_ = true;
+              }
+          } else {
+              if ((state_ != PUSH || cmd_.mode != READY) ||
+                  (cmd_.mode == READY &&
+                   std::fmod(std::abs(ctrl_trigger_.command_struct_.position_ - ctrl_trigger_.getPosition()),
+                             2. * M_PI) <
+                   config_.exit_push_threshold)) {
+                  state_ = cmd_.mode;
+                  state_changed_ = true;
+              }
+
+          }
+  }
   }
 
   if (state_ != STOP)
@@ -175,11 +187,24 @@ void Controller::push(const ros::Time& time, const ros::Duration& period)
         }
         config_.forward_push_threshold-=0.5;
     }else{
-        if (std::fmod(std::abs(ctrl_trigger_.command_struct_.position_ - ctrl_trigger_.getPosition()), 2. * M_PI) <
-            config_.forward_push_threshold) {
-            ctrl_trigger_.setCommand(ctrl_trigger_.command_struct_.position_ -
-                                      2. * M_PI / static_cast<double>(push_per_rotation_));
-            last_shoot_time_ = time;
+        if(ctrl_trigger_.command_struct_.position_ - ctrl_trigger_.getPosition() >= ctrl_trigger_.command_struct_.position_/2){
+            if (std::fmod(std::abs(ctrl_trigger_.command_struct_.position_ - ctrl_trigger_.getPosition()), 2. * M_PI) <
+                config_.forward_push_threshold) {
+                expect_velocity += std::pow(-1 * cmd_.hz * 2. * M_PI / static_cast<double>(push_per_rotation_), 2) /
+                                   ctrl_trigger_.command_struct_.position_ - ctrl_trigger_.getPosition();
+                ctrl_trigger_.setCommand(ctrl_trigger_.command_struct_.position_ -
+                                         2. * M_PI / static_cast<double>(push_per_rotation_), expect_velocity);
+                last_shoot_time_ = time;
+            }
+        }else{
+            if (std::fmod(std::abs(ctrl_trigger_.command_struct_.position_ - ctrl_trigger_.getPosition()), 2. * M_PI) <
+                config_.forward_push_threshold) {
+                expect_velocity -= std::pow(-1 * cmd_.hz * 2. * M_PI / static_cast<double>(push_per_rotation_), 2) /
+                                   ctrl_trigger_.command_struct_.position_ - ctrl_trigger_.getPosition();
+                ctrl_trigger_.setCommand(ctrl_trigger_.command_struct_.position_ -
+                                         2. * M_PI / static_cast<double>(push_per_rotation_), expect_velocity);
+                last_shoot_time_ = time;
+            }
         }
     }
     // Check block
