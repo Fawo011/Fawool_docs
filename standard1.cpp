@@ -179,23 +179,12 @@ void Controller::push(const ros::Time& time, const ros::Duration& period)
     }
     else
     {
-      if (ctrl_trigger_.command_struct_.position_ - ctrl_trigger_.getPosition() >=
-          (static_cast<double>(push_per_rotation_) / 2))
-      {
-        expect_velocity += std::pow(-1 * cmd_.hz * 2. * M_PI / static_cast<double>(push_per_rotation_), 2) /
-            (2 * (ctrl_trigger_.command_struct_.position_ - 2. * M_PI / static_cast<double>(push_per_rotation_)));
-      }
-      else
-      {
-        expect_velocity -= std::pow(-1 * cmd_.hz * 2. * M_PI / static_cast<double>(push_per_rotation_), 2) /
-            (2 * (ctrl_trigger_.command_struct_.position_ - 2. * M_PI / static_cast<double>(push_per_rotation_)));
-      }
       if (std::fmod(std::abs(ctrl_trigger_.command_struct_.position_ - ctrl_trigger_.getPosition()), 2. * M_PI) <
           config_.forward_push_threshold)
       {
         ctrl_trigger_.setCommand(ctrl_trigger_.command_struct_.position_ -
                                      2. * M_PI / static_cast<double>(push_per_rotation_),
-                                 expect_velocity);
+                                 planVelocity(ctrl_trigger_.command_struct_.velocity_));
         last_shoot_time_ = time;
       }
     }
@@ -226,7 +215,6 @@ void Controller::push(const ros::Time& time, const ros::Duration& period)
 
 void Controller::block(const ros::Time& time, const ros::Duration& period)
 {
-  expect_velocity = 0;
   if (state_changed_)
   {  // on enter
     state_changed_ = false;
@@ -250,6 +238,25 @@ void Controller::setSpeed(const rm_msgs::ShootCmd& cmd)
 {
   ctrl_friction_l_.setCommand(cmd_.wheel_speed + config_.extra_wheel_speed);
   ctrl_friction_r_.setCommand(-cmd_.wheel_speed - config_.extra_wheel_speed);
+}
+
+bool Controller::planVelocity(double vel)
+{
+  double expect_velocity = vel;
+  if (ctrl_trigger_.command_struct_.position_ - ctrl_trigger_.getPosition() >=
+      (static_cast<double>(push_per_rotation_) / 2))
+  {
+    expect_velocity +=
+        std::pow(-1 * cmd_.hz * 2. * M_PI / static_cast<double>(push_per_rotation_), 2) /
+        (2 * (ctrl_trigger_.command_struct_.position_ - 2. * M_PI / static_cast<double>(push_per_rotation_)));
+  }
+  else
+  {
+    expect_velocity -=
+        std::pow(-1 * cmd_.hz * 2. * M_PI / static_cast<double>(push_per_rotation_), 2) /
+        (2 * (ctrl_trigger_.command_struct_.position_ - 2. * M_PI / static_cast<double>(push_per_rotation_)));
+  }
+  return expect_velocity;
 }
 
 void Controller::normalize()
